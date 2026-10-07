@@ -1,0 +1,62 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Markets Watchlist Dashboard</title>
+<style>
+:root{--bg:#0b0f17;--card:#131a26;--line:#223047;--tx:#d8e1ee;--mut:#7f8ea6;--up:#22c55e;--dn:#ef4444;--ac:#38bdf8;--or:#f59e0b}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:13px/1.4 Inter,Segoe UI,system-ui,sans-serif}
+header{display:flex;justify-content:space-between;align-items:center;padding:16px 24px;border-bottom:1px solid var(--line);background:#0e1420}
+h1{font-size:18px;margin:0;letter-spacing:.3px}h1 span{color:var(--ac)}.mut{color:var(--mut)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;padding:16px 24px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}.card h3{margin:0 0 8px;font-size:11px;text-transform:uppercase;color:var(--mut);letter-spacing:.8px}
+.big{font-size:22px;font-weight:600}.row{display:flex;justify-content:space-between;padding:2px 0}
+.up{color:var(--up)}.dn{color:var(--dn)}
+.bar{padding:0 24px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.tab{background:var(--card);border:1px solid var(--line);color:var(--tx);padding:6px 12px;border-radius:20px;cursor:pointer}.tab.on{background:var(--ac);color:#04121f;border-color:var(--ac)}
+input{background:var(--card);border:1px solid var(--line);color:var(--tx);padding:6px 10px;border-radius:6px;margin-left:auto;width:220px}
+.wrap{padding:12px 24px;overflow-x:auto}table{width:100%;border-collapse:collapse;min-width:1200px}
+th{position:sticky;top:0;background:#0e1420;color:var(--mut);font-weight:500;text-align:right;padding:8px;border-bottom:1px solid var(--line);cursor:pointer;white-space:nowrap}
+td{padding:7px 8px;border-bottom:1px solid #1a2436;text-align:right;white-space:nowrap}th:nth-child(-n+2),td:nth-child(-n+2){text-align:left}
+tr:hover td{background:#162033}.tk{font-weight:600;color:var(--ac)}.nm{color:var(--mut);font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;display:block}
+.b{padding:2px 7px;border-radius:10px;font-size:11px}.ob{background:#3b2a0a;color:var(--or)}.os{background:#0b2a3b;color:var(--ac)}.nu{background:#1d2738;color:var(--mut)}
+.rng{width:90px;height:6px;background:#223047;border-radius:3px;position:relative;display:inline-block}.rng i{position:absolute;top:-2px;width:4px;height:10px;background:var(--ac);border-radius:2px}
+.cat{font-size:11px;color:var(--mut)}.th{cursor:help;border-bottom:1px dotted var(--mut)}
+footer{padding:18px 24px;color:var(--mut);font-size:11px;border-top:1px solid var(--line);margin-top:20px}
+</style></head><body>
+<header><h1>Markets <span>Watchlist</span> Dashboard</h1><div class="mut">Data as of <b id="ts">__TS__</b> · Google Finance via sheet (quotes may be delayed ~20 min)</div></header>
+<section class="kpis" id="kpis"></section>
+<div class="bar" id="tabs"></div>
+<div class="wrap"><table><thead><tr id="hd"></tr></thead><tbody id="bd"></tbody></table></div>
+<footer>Ideas and analysis only, not trade advice. Live fields: price, change, volume, market cap, P/E, 52-week range, 50d/200d SMA, RSI(14, Wilder, on daily closes). Static fields (forward P/E, takeover score, thesis) carry their own as-of dates and sources; takeover scores are judgment. n/a = not available from source. View-only.</footer>
+<script>
+const D=__DATA__;const n=v=>typeof v==='number'&&isFinite(v);
+const f=(v,d=2)=>n(v)?v.toLocaleString(undefined,{minimumFractionDigits:d,maximumFractionDigits:d}):'<span class="mut">n/a</span>';
+const p=v=>n(v)?`<span class="${v>=0?'up':'dn'}">${v>=0?'+':''}${(v*100).toFixed(2)}%</span>`:'<span class="mut">n/a</span>';
+const num=v=>{if(n(v))return v;const x=parseFloat(String(v??'').replace(/[^0-9.\-]/g,''));return isFinite(x)?x:null};
+function spark(a){if(!a||a.length<2)return'';const mn=Math.min(...a),mx=Math.max(...a),w=80,h=22;const pts=a.map((v,i)=>`${(i/(a.length-1)*w).toFixed(1)},${(h-(v-mn)/(mx-mn||1)*h).toFixed(1)}`).join(' ');return`<svg width="${w}" height="${h}"><polyline fill="none" stroke="${a[a.length-1]>=a[0]?'#22c55e':'#ef4444'}" stroke-width="1.4" points="${pts}"/></svg>`}
+const g=t=>D.find(d=>d.Ticker===t)||{};
+// KPIs
+const ab=D.filter(d=>d.Trend==='Above 200d').length,be=D.filter(d=>d.Trend==='Below 200d').length;
+const s=[...D].filter(d=>n(d['Chg %'])).sort((a,b)=>b['Chg %']-a['Chg %']);
+const sp=g('SPCX'),nv=g('NOVT');const today=new Date();
+const days=x=>Math.ceil((new Date(x+'T00:00:00-04:00')-today)/864e5);
+const lk=[['Oct 9 (7%)','2026-10-09'],['Oct 24 (7%)','2026-10-24'],['Dec 8 (rest)','2026-12-08']];
+const dist=(pr,l)=>n(pr)?p(pr/l-1):'n/a';
+document.getElementById('kpis').innerHTML=`
+<div class="card"><h3>Trend breadth (vs 200d)</h3><div class="big"><span class="up">${ab}</span> / <span class="dn">${be}</span></div><div class="mut">above / below · ${D.length} names</div></div>
+<div class="card"><h3>Top movers today</h3>${s.slice(0,3).map(d=>`<div class="row"><span class="tk">${d.Ticker}</span>${p(d['Chg %'])}</div>`).join('')}${s.slice(-3).reverse().map(d=>`<div class="row"><span class="tk">${d.Ticker}</span>${p(d['Chg %'])}</div>`).join('')}</div>
+<div class="card"><h3>SPCX ${f(sp.Price)} · alert distance</h3>${[135,125,104.83].map(l=>`<div class="row"><span>$${l}</span>${dist(sp.Price,l)}</div>`).join('')}<div class="mut" style="margin-top:6px">Lockups: ${lk.map(([a,b])=>{const k=days(b);return a+' '+(k>0?k+'d':'passed')}).join(' · ')} · 28% after Q3</div></div>
+<div class="card"><h3>NOVT (position) ${f(nv.Price)}</h3><div class="row"><span>vs 200d 140.67</span>${dist(nv.Price,140.67)}</div><div class="row"><span>vs 52w high 176.38</span>${dist(nv.Price,176.38)}</div><div class="row"><span>RSI(14)</span>${f(nv['RSI(14)'],1)}</div></div>`;
+// table
+const cats=['All',...new Set(D.map(d=>d.Category))];let cat='All',q='',sk='Category',sd=1;
+const cols=[['Ticker','Ticker'],['Category','Category'],['Price','Price'],['Chg %','Chg %'],['spark','60d'],['Mkt Cap (bn, local ccy)','Mkt cap (bn)'],['P/E (TTM)','P/E'],['Fwd P/E (static)','Fwd P/E'],['vs 50d','vs 50d'],['vs 200d','vs 200d'],['RSI(14)','RSI'],['% of 52w Range','52w range'],['Takeover Score (static)','Score'],['Next Earnings (static)','Next ER']];
+document.getElementById('tabs').innerHTML=cats.map(c=>`<button class="tab${c==='All'?' on':''}" data-c="${c}">${c}</button>`).join('')+'<input id="q" placeholder="Filter ticker / name / thesis">';
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{cat=b.dataset.c;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===b));draw()});
+document.getElementById('q').oninput=e=>{q=e.target.value.toLowerCase();draw()};
+document.getElementById('hd').innerHTML=cols.map(([k,l])=>`<th data-k="${k}">${l}</th>`).join('');
+document.querySelectorAll('th').forEach(t=>t.onclick=()=>{const k=t.dataset.k;if(k==='spark')return;sd=sk===k?-sd:1;sk=k;draw()});
+const rsi=v=>!n(v)?'<span class="mut">n/a</span>':`<span class="b ${v>70?'ob':v<30?'os':'nu'}">${v.toFixed(1)}</span>`;
+const rng=d=>{const v=d['% of 52w Range'];return n(v)?`<span title="${f(d['52w Low'])} – ${f(d['52w High'])}"><span class="rng"><i style="left:${Math.max(0,Math.min(1,v))*86}px"></i></span> ${(v*100).toFixed(0)}%</span>`:'n/a'};
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function draw(){let r=D.filter(d=>(cat==='All'||d.Category===cat)&&(!q||(d.Ticker+d.Name+d['Thesis / Why']).toLowerCase().includes(q)));
+r.sort((a,b)=>{let x=num(a[sk]),y=num(b[sk]);if(x===null&&y===null){x=String(a[sk]);y=String(b[sk]);return x<y?-sd:x>y?sd:0}if(x===null)return 1;if(y===null)return -1;return (x-y)*sd});
+document.getElementById('bd').innerHTML=r.map(d=>`<tr><td><span class="tk th" title="${esc(d['Thesis / Why'])}${d['Alert Levels / Watch']?' | '+esc(d['Alert Levels / Watch']):''} [${esc(d['Static Source'])}]">${esc(d.Ticker)}</span><span class="nm">${esc(d.Name)}</span></td><td class="cat">${esc(d.Category)}</td><td>${f(d.Price)} <span class="mut">${d.Ccy||''}</span></td><td>${p(d['Chg %'])}</td><td>${spark(d.spark)}</td><td>${f(d['Mkt Cap (bn, local ccy)'],1)}</td><td>${n(d['P/E (TTM)'])?f(d['P/E (TTM)'],1):'<span class="mut">'+esc(d['P/E (TTM)']||'n/a')+'</span>'}</td><td>${esc(d['Fwd P/E (static)']||'n/a')}</td><td>${p(d['vs 50d'])}</td><td>${p(d['vs 200d'])}</td><td>${rsi(d['RSI(14)'])}</td><td>${rng(d)}</td><td>${esc(d['Takeover Score (static)']||'n/a')}</td><td class="cat">${esc(d['Next Earnings (static)']||'n/a')}</td></tr>`).join('')}
+draw();
+</script></body></html>
